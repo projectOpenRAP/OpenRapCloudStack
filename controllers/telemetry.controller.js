@@ -1,3 +1,4 @@
+
 let fs  = require('fs');
 let q = require('q');
 let request = require('request');
@@ -6,7 +7,7 @@ let couchbase = require('couchbase');
 let zip = new require('node-zip')();
 let unz = require('unzip');
 let rimraf = require('rimraf');
-//TODO remove what you dont need
+
 let devMgmtTelemetryIndex = 'devmgmt';
 let indices = {
     gok : 'gok',
@@ -16,8 +17,8 @@ let gokTelemetryIndex = 'gok';
 let hostAddress = '0.0.0.0:9200';
 let couchBaseAddress = '0.0.0.0:8091';
 // http://kong:8001/consumers --data "username=uname"
-let cluster = new couchbase.Cluster(`${couchBaseAddress}`); //TODO just use a variable
-cluster.authenticate('aiadmin', 'telemetry@!@#$'); // TODO move to config and env variable
+let cluster = new couchbase.Cluster(`${couchBaseAddress}`);
+cluster.authenticate('aiadmin', 'telemetry@!@#$');
 let bucket = cluster.openBucket('telemetry');
 let bucket2 = cluster.openBucket('users');
 
@@ -27,7 +28,11 @@ bucket.on('error', (err) => {
 });
 
 bucket.on('connect', () => {
-    console.log("Connected to couchbase!");
+    console.log("Connected to couchbase telemetry bucket!");
+});
+
+bucket.on('close', () => {
+    console.log("Connection to couchbase telemetry bucket closed!");
 });
 
 bucket2.on('error', (err) => {
@@ -36,18 +41,46 @@ bucket2.on('error', (err) => {
 });
 
 bucket2.on('connect', () => {
-    console.log("Connected to users bucket!");
+    console.log("Connected to couchbase users bucket!");
 });
 
+
+bucket2.on('close', () => {
+    console.log("Connection to couchbase users bucket closed!");
+});
+    
 bucket.operationTimeout = 120 * 1000;
 bucket2.operationTimeout = 120 * 1000;
 
 let client = new elasticsearch.Client({
-    host : `${hostAddress}`, //TODO change to variable
+    host : `${hostAddress}`,
     log : 'trace'
 });
 
-//HALP: PLS HALP
+
+let generateKey = (data) => {
+    let defer = q.defer();
+    let consumer = data.consumer;
+
+    // TODO: replace below code with actual code
+
+    defer.resolve({key : 'D5ZBUkv4d4'});
+    return defer.promise;
+}
+
+
+let generateConsumer = (data) => {
+    let defer = q.defer();
+    let username = data.username;
+    let password = data.password;
+
+    // TODO: Replace below code with actual code
+
+    defer.resolve({consumer : 'uwi402ni2-011m39'});
+    return defer.promise;
+}
+
+
 let loadJsonData = (fileName) => {
     let defer = q.defer();
     if (fileName.indexOf("_failed") > 0) {
@@ -261,13 +294,13 @@ let prepareBulkDataForCouchBase = (data) => {
 let createAccessKey = (name) => {
     let defer = q.defer();
     request.post({
-        url: `http://0.0.0.0:8001/consumers?username=${name}`
+        url: `http://127.0.0.1:8001/consumers?username=${name}`
     }, (err, resp, body) => {
         if (err) {
             defer.reject({err});
         } else {
             request.post({
-                url: `http://0.0.0.0:8001/consumers/${name}/key-auth/`
+                url: `http://127.0.0.1:8001/consumers/${name}/key-auth/`
             }, (err, resp, body) => {
                 if (err) {
                     return defer.reject({err});
@@ -284,7 +317,6 @@ let createAccessKey = (name) => {
 let verifyCredentials = (username, password) => {
     let defer = q.defer();
     bucket2.get(username, (err, result) => {
-        console.log(result);
         if (err && err.code === 13) {
             return defer.reject({code: 404, err: "User Does Not Exist"});
         } else if (err) {
@@ -504,7 +536,6 @@ let uploadTelemetryToCouchbase = (req, res) => {
 let initialize = (req, res) => {
     let username = req.body.username;
     let password = req.body.password;
-    console.log(`Username is ${username} and Password is ${password}`);
     let consumer = '';
     let key = '';
     let responseStructure = {
@@ -512,7 +543,7 @@ let initialize = (req, res) => {
         msg : ''
     }
     verifyCredentials(username, password).then(value => {
-        request.post(`http://0.0.0.0:8001/consumers?username=${username}`, (err, resp, body) => {
+        request.post(`http://127.0.0.1:8001/consumers?username=${username}`, (err, resp, body) => {
             if (!(err)) {
                 let response = JSON.parse(body);
                 let id = response.id;
@@ -521,7 +552,7 @@ let initialize = (req, res) => {
                 responseStructure.id = id;
                 request.post(
                     {
-                         url: `http://0.0.0.0:8001/consumers/${username}/key-auth`,
+                         url: `http://127.0.0.1:8001/consumers/${username}/key-auth`,
                     }, (err, resp, body) => {
                         if (!(err)) {
                             let b = JSON.parse(body);
